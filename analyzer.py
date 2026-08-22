@@ -23,6 +23,8 @@ class AnalysisResult:
     largest_file: FileInfo | None
     latest_file: FileInfo | None
     warnings: list[str]
+    total_size: int
+    average_character_count: float
 
 def count_characters(text: str) -> int:
     """统计去除空白字符后的字符数量。"""
@@ -61,6 +63,10 @@ def analyze_directory(directory: Path) -> AnalysisResult:
         largest_file=max(files, key=lambda item: item.size, default=None),
         latest_file=max(files, key=lambda item: item.modified_time, default=None),
         warnings=warnings,
+        total_size=sum(item.size for item in files),
+        average_character_count=(
+            sum(item.character_count for item in files) / len(files) if files else 0
+        ),
     )
 
 def format_size(size: int) -> str:
@@ -77,6 +83,9 @@ def generate_report(result: AnalysisResult) -> str:
              f"- Directory: `{result.directory}`",
              f"- Markdown files: {len(result.files)}",
              f"- Total characters: {result.total_character_count:,}",
+             f"- Total file size: {format_size(result.total_size)}",
+             f"- Average characters per file: {result.average_character_count:.2f}",
+             f"- Warnings: {len(result.warnings)}",
              f"- Generated at: {datetime.now():%Y-%m-%d %H:%M:%S}", "",
              "## Largest File", ""]
     largest = result.largest_file
