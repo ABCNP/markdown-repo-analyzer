@@ -88,5 +88,22 @@ class AnalyzerTests(unittest.TestCase):
             self.assertIn("Largest File", report)
             self.assertIn("Most Recently Modified File", report)
 
+    def test_read_errors_are_recorded_as_warnings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            document = root / "document.md"
+            document.write_text("valid", encoding="utf-8")
+            unreadable = root / "unreadable.md"
+            unreadable.write_bytes(b"\xff\xfe")
+
+            result = analyze_directory(root)
+            report = generate_report(result)
+
+            self.assertEqual(len(result.files), 1)
+            self.assertEqual(result.files[0].path, document)
+            self.assertEqual(len(result.warnings), 1)
+            self.assertIn("Warnings", report)
+            self.assertIn("unreadable.md", report)
+
 if __name__ == "__main__":
     unittest.main()

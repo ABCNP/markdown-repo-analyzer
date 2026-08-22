@@ -22,12 +22,13 @@ class AnalysisResult:
     total_character_count: int
     largest_file: FileInfo | None
     latest_file: FileInfo | None
+    warnings: list[str]
 
 def count_characters(text: str) -> int:
     """统计去除空白字符后的字符数量。"""
     return sum(not character.isspace() for character in text)
 
-def scan_markdown_files(directory: Path) -> list[FileInfo]:
+def scan_markdown_files(directory: Path, warnings: list[str] | None = None) -> list[FileInfo]:
     """递归扫描目录，并读取所有 Markdown 文件的基础信息。"""
     if not directory.exists():
         raise FileNotFoundError(f"Directory does not exist: {directory}")
@@ -41,19 +42,25 @@ def scan_markdown_files(directory: Path) -> list[FileInfo]:
             text = path.read_text(encoding="utf-8")
             stat = path.stat()
         except (OSError, UnicodeError) as exc:
-            raise RuntimeError(f"Unable to read file {path}: {exc}") from exc
+            message = f"Unable to read file {path}: {exc}"
+            if warnings is None:
+                raise RuntimeError(message) from exc
+            warnings.append(message)
+            continue
         files.append(FileInfo(path, stat.st_size, count_characters(text), stat.st_mtime))
     return files
 
 def analyze_directory(directory: Path) -> AnalysisResult:
     """分析指定目录，返回文件数、总字数及最大和最近文件。"""
-    files = scan_markdown_files(directory)
+    warnings: list[str] = []
+    files = scan_markdown_files(directory, warnings)
     return AnalysisResult(
         directory=directory,
         files=files,
         total_character_count=sum(item.character_count for item in files),
         largest_file=max(files, key=lambda item: item.size, default=None),
         latest_file=max(files, key=lambda item: item.modified_time, default=None),
+        warnings=warnings,
     )
 
 def format_size(size: int) -> str:
@@ -84,6 +91,9 @@ def generate_report(result: AnalysisResult) -> str:
                        f"- Modified: {datetime.fromtimestamp(latest.modified_time):%Y-%m-%d %H:%M:%S}"])
     else:
         lines.append("No Markdown files found.")
+    if result.warnings:
+        lines.extend(["", "## Warnings", ""])
+        lines.extend(f"- {warning}" for warning in result.warnings)
     return "\n".join(lines) + "\n"
 
 def main() -> int:
