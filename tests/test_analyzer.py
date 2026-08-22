@@ -90,6 +90,7 @@ class AnalyzerTests(unittest.TestCase):
             self.assertIn("Total file size:", report)
             self.assertIn("Average characters per file:", report)
             self.assertIn("Warnings: 0", report)
+            self.assertIn("Directory Summary", report)
             self.assertIn("Largest File", report)
             self.assertIn("Most Recently Modified File", report)
 
@@ -110,6 +111,20 @@ class AnalyzerTests(unittest.TestCase):
             self.assertIn("Warnings", report)
             self.assertIn("unreadable.md", report)
             self.assertIn("Warnings: 1", report)
+
+    def test_directory_statistics_group_files_by_parent_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "root.md").write_text("root", encoding="utf-8")
+            (root / "notes").mkdir()
+            (root / "notes" / "one.md").write_text("notes", encoding="utf-8")
+
+            result = analyze_directory(root)
+            report = generate_report(result)
+
+            self.assertEqual(result.directory_statistics["."]["file_count"], 1)
+            self.assertEqual(result.directory_statistics["notes"]["file_count"], 1)
+            self.assertIn("| `notes` | 1 |", report)
 
 if __name__ == "__main__":
     unittest.main()
