@@ -26,8 +26,66 @@ class AnalyzerTests(unittest.TestCase):
     def test_empty_directory_report(self):
         with tempfile.TemporaryDirectory() as directory:
             report = generate_report(analyze_directory(Path(directory)))
-            self.assertIn("Markdown 文件数：0", report)
-            self.assertIn("暂无 Markdown 文件。", report)
+            self.assertIn("Markdown files: 0", report)
+            self.assertIn("No Markdown files found.", report)
+
+    def test_largest_file_is_selected_by_size(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            small = root / "small.md"
+            large = root / "large.md"
+            small.write_text("small", encoding="utf-8")
+            large.write_text("large content", encoding="utf-8")
+
+            result = analyze_directory(root)
+
+            self.assertEqual(result["largest_file"].path, large)
+
+    def test_latest_file_is_selected_by_modified_time(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            older = root / "older.md"
+            latest = root / "latest.md"
+            older.write_text("older", encoding="utf-8")
+            latest.write_text("latest", encoding="utf-8")
+            older.touch()
+            latest.touch()
+            import os
+            os.utime(older, (1000, 1000))
+            os.utime(latest, (2000, 2000))
+
+            result = analyze_directory(root)
+
+            self.assertEqual(result["latest_file"].path, latest)
+
+    def test_markdown_extensions_are_case_insensitive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "lower.md").write_text("one", encoding="utf-8")
+            (root / "mixed.MARKDOWN").write_text("two", encoding="utf-8")
+            (root / "ignored.txt").write_text("three", encoding="utf-8")
+
+            result = analyze_directory(root)
+
+            self.assertEqual(len(result["files"]), 2)
+
+    def test_missing_directory_raises_file_not_found(self):
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / "missing"
+            with self.assertRaises(FileNotFoundError):
+                analyze_directory(missing)
+
+    def test_report_contains_core_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "document.md").write_text("report content", encoding="utf-8")
+
+            report = generate_report(analyze_directory(root))
+
+            self.assertIn("Markdown files: 1", report)
+            self.assertIn("Total characters:", report)
+            self.assertIn("Largest File", report)
+            self.assertIn("Most Recently Modified File", report)
 
 if __name__ == "__main__":
     unittest.main()
