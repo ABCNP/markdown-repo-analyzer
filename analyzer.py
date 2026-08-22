@@ -26,6 +26,7 @@ class AnalysisResult:
     total_size: int
     average_character_count: float
     directory_statistics: dict[str, dict[str, int]]
+    empty_files: list[Path]
 
 def count_characters(text: str) -> int:
     """统计去除空白字符后的字符数量。"""
@@ -58,7 +59,10 @@ def analyze_directory(directory: Path) -> AnalysisResult:
     warnings: list[str] = []
     files = scan_markdown_files(directory, warnings)
     directory_statistics: dict[str, dict[str, int]] = {}
+    empty_files: list[Path] = []
     for item in files:
+        if item.character_count == 0:
+            empty_files.append(item.path)
         relative_directory = item.path.parent.relative_to(directory)
         directory_name = str(relative_directory) if str(relative_directory) != "." else "."
         statistics = directory_statistics.setdefault(
@@ -79,6 +83,7 @@ def analyze_directory(directory: Path) -> AnalysisResult:
             sum(item.character_count for item in files) / len(files) if files else 0
         ),
         directory_statistics=directory_statistics,
+        empty_files=empty_files,
     )
 
 def format_size(size: int) -> str:
@@ -115,6 +120,9 @@ def generate_report(result: AnalysisResult) -> str:
     if result.warnings:
         lines.extend(["", "## Warnings", ""])
         lines.extend(f"- {warning}" for warning in result.warnings)
+    lines.extend(["", "## Empty Files", "", f"- Count: {len(result.empty_files)}"])
+    if result.empty_files:
+        lines.extend(f"- File: `{path}`" for path in result.empty_files)
     lines.extend(["", "## Directory Summary", "", "| Directory | Files | Characters | Size |",
                    "|---|---:|---:|---:|"])
     if result.directory_statistics:

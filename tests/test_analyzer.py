@@ -91,6 +91,7 @@ class AnalyzerTests(unittest.TestCase):
             self.assertIn("Average characters per file:", report)
             self.assertIn("Warnings: 0", report)
             self.assertIn("Directory Summary", report)
+            self.assertIn("Empty Files", report)
             self.assertIn("Largest File", report)
             self.assertIn("Most Recently Modified File", report)
 
@@ -125,6 +126,20 @@ class AnalyzerTests(unittest.TestCase):
             self.assertEqual(result.directory_statistics["."]["file_count"], 1)
             self.assertEqual(result.directory_statistics["notes"]["file_count"], 1)
             self.assertIn("| `notes` | 1 |", report)
+
+    def test_empty_files_are_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            empty_file = root / "empty.md"
+            empty_file.write_text("  \n\t", encoding="utf-8")
+            (root / "filled.md").write_text("content", encoding="utf-8")
+
+            result = analyze_directory(root)
+            report = generate_report(result)
+
+            self.assertEqual(result.empty_files, [empty_file])
+            self.assertIn("- Count: 1", report)
+            self.assertIn("empty.md", report)
 
 if __name__ == "__main__":
     unittest.main()
