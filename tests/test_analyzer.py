@@ -25,6 +25,7 @@ class AnalyzerTests(unittest.TestCase):
             self.assertEqual(result.average_character_count, 3.5)
             self.assertEqual(result.total_heading_count, 0)
             self.assertEqual(result.total_code_block_count, 0)
+            self.assertEqual(result.broken_links, [])
             self.assertIsNotNone(result.largest_file)
             self.assertIsNotNone(result.latest_file)
 
@@ -94,6 +95,7 @@ class AnalyzerTests(unittest.TestCase):
             self.assertIn("Warnings: 0", report)
             self.assertIn("Total headings:", report)
             self.assertIn("Total code blocks:", report)
+            self.assertIn("File Details", report)
             self.assertIn("Directory Summary", report)
             self.assertIn("Empty Files", report)
             self.assertIn("Largest File", report)
@@ -166,6 +168,30 @@ class AnalyzerTests(unittest.TestCase):
 
             self.assertEqual(result.total_code_block_count, 2)
             self.assertEqual(result.files[0].code_block_count, 2)
+
+    def test_links_images_and_broken_links_are_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "target.md").write_text("target", encoding="utf-8")
+            document = root / "document.md"
+            document.write_text("[ok](target.md) [bad](missing.md) ![image](pic.png)", encoding="utf-8")
+
+            result = analyze_directory(root)
+
+            info = next(item for item in result.files if item.path == document)
+            self.assertEqual(info.link_count, 2)
+            self.assertEqual(info.image_count, 1)
+            self.assertEqual(len(result.broken_links), 1)
+
+    def test_long_files_are_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            long_file = root / "long.md"
+            long_file.write_text("x" * 10000, encoding="utf-8")
+
+            result = analyze_directory(root)
+
+            self.assertEqual(result.long_files, [long_file])
 
 if __name__ == "__main__":
     unittest.main()

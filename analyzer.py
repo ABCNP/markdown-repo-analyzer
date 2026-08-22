@@ -1,10 +1,12 @@
 """Analyze a local repository of Markdown files."""
 import argparse
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 MARKDOWN_SUFFIXES = {".md", ".markdown"}
+LONG_FILE_THRESHOLD = 10000
 
 @dataclass
 class FileInfo:
@@ -15,6 +17,8 @@ class FileInfo:
     modified_time: float
     heading_count: int
     code_block_count: int
+    link_count: int
+    image_count: int
 
 @dataclass
 class AnalysisResult:
@@ -31,6 +35,8 @@ class AnalysisResult:
     empty_files: list[Path]
     total_heading_count: int
     total_code_block_count: int
+    long_files: list[Path]
+    broken_links: list[str]
 
 def count_characters(text: str) -> int:
     """统计去除空白字符后的字符数量。"""
@@ -44,6 +50,12 @@ def count_code_blocks(text: str) -> int:
     """统计 Markdown 代码块数量。"""
     fence_count = sum(line.strip().startswith("```") for line in text.splitlines())
     return fence_count // 2
+
+def extract_links(text: str) -> tuple[int, int, list[str]]:
+    """统计链接和图片，并返回无法找到的本地链接。"""
+    image_targets = re.findall(r"!\[[^]]*\]\(([^)]+)\)", text)
+    link_targets = re.findall(r"(?<!!)\[[^]]*\]\(([^)]+)\)", text)
+    return len(link_targets), len(image_targets), link_targets
 
 def scan_markdown_files(directory: Path, warnings: list[str] | None = None) -> list[FileInfo]:
     """递归扫描目录，并读取所有 Markdown 文件的基础信息。"""
@@ -64,8 +76,16 @@ def scan_markdown_files(directory: Path, warnings: list[str] | None = None) -> l
                 raise RuntimeError(message) from exc
             warnings.append(message)
             continue
+        link_count, image_count, link_targets = extract_links(text)
+        for target in link_targets:
+            target = target.split("#", 1)[0].strip().strip("<>")
+            if not target or target.startswith(("http://", "https://", "mailto:", "#")):
+                continue
+            if not (path.parent / target).exists() and warnings is not None:
+                warnings.append(f"Broken local link in {path}: {target}")
         files.append(FileInfo(path, stat.st_size, count_characters(text), stat.st_mtime,
-                              count_headings(text), count_code_blocks(text)))
+                              count_headings(text), count_code_blocks(text),
+                              link_count, image_count))
     return files
 
 def analyze_directory(directory: Path) -> AnalysisResult:
@@ -74,9 +94,12 @@ def analyze_directory(directory: Path) -> AnalysisResult:
     files = scan_markdown_files(directory, warnings)
     directory_statistics: dict[str, dict[str, int]] = {}
     empty_files: list[Path] = []
+    long_files: list[Path] = []
     for item in files:
         if item.character_count == 0:
             empty_files.append(item.path)
+        if item.character_count >= LONG_FILE_THRESHOLD:
+            long_files.append(item.path)
         relative_directory = item.path.parent.relative_to(directory)
         directory_name = str(relative_directory) if str(relative_directory) != "." else "."
         statistics = directory_statistics.setdefault(
@@ -100,6 +123,8 @@ def analyze_directory(directory: Path) -> AnalysisResult:
         empty_files=empty_files,
         total_heading_count=sum(item.heading_count for item in files),
         total_code_block_count=sum(item.code_block_count for item in files),
+        long_files=long_files,
+        broken_links=[warning for warning in warnings if warning.startswith("Broken local link")],
     )
 
 def format_size(size: int) -> str:
@@ -121,6 +146,7 @@ def generate_report(result: AnalysisResult) -> str:
              f"- Warnings: {len(result.warnings)}",
              f"- Total headings: {result.total_heading_count}",
              f"- Total code blocks: {result.total_code_block_count}",
+             f"- Broken local links: {len(result.broken_links)}",
              f"- Generated at: {datetime.now():%Y-%m-%d %H:%M:%S}", "",
              "## Largest File", ""]
     largest = result.largest_file
@@ -141,6 +167,9 @@ def generate_report(result: AnalysisResult) -> str:
     lines.extend(["", "## Empty Files", "", f"- Count: {len(result.empty_files)}"])
     if result.empty_files:
         lines.extend(f"- File: `{path}`" for path in result.empty_files)
+    lines.extend(["", "## Long Files", "", f"- Count: {len(result.long_files)}"])
+    if result.long_files:
+        lines.extend(f"- File: `{path}`" for path in result.long_files)
     lines.extend(["", "## Directory Summary", "", "| Directory | Files | Characters | Size |",
                    "|---|---:|---:|---:|"])
     if result.directory_statistics:
@@ -151,6 +180,11 @@ def generate_report(result: AnalysisResult) -> str:
             )
     else:
         lines.append("| No Markdown files | 0 | 0 | 0 B |")
+    lines.extend(["", "## File Details", "", "| File | Characters | Headings | Code blocks | Links | Images |",
+                   "|---|---:|---:|---:|---:|---:|"])
+    for item in result.files:
+        lines.append(f"| `{item.path}` | {item.character_count:,} | {item.heading_count} | "
+                     f"{item.code_block_count} | {item.link_count} | {item.image_count} |")
     return "\n".join(lines) + "\n"
 
 def main() -> int:
