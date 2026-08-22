@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from analyzer import analyze_directory, count_characters, generate_report
+from analyzer import AnalysisResult, analyze_directory, count_characters, generate_report
 
 class AnalyzerTests(unittest.TestCase):
     def test_count_characters_ignores_whitespace(self):
@@ -18,10 +18,11 @@ class AnalyzerTests(unittest.TestCase):
             (root / "nested" / "b.markdown").write_text("abc", encoding="utf-8")
             (root / "ignored.txt").write_text("ignored", encoding="utf-8")
             result = analyze_directory(root)
-            self.assertEqual(len(result["files"]), 2)
-            self.assertEqual(result["total_character_count"], 7)
-            self.assertIsNotNone(result["largest_file"])
-            self.assertIsNotNone(result["latest_file"])
+            self.assertIsInstance(result, AnalysisResult)
+            self.assertEqual(len(result.files), 2)
+            self.assertEqual(result.total_character_count, 7)
+            self.assertIsNotNone(result.largest_file)
+            self.assertIsNotNone(result.latest_file)
 
     def test_empty_directory_report(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -39,7 +40,7 @@ class AnalyzerTests(unittest.TestCase):
 
             result = analyze_directory(root)
 
-            self.assertEqual(result["largest_file"].path, large)
+            self.assertEqual(result.largest_file.path, large)
 
     def test_latest_file_is_selected_by_modified_time(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -56,7 +57,7 @@ class AnalyzerTests(unittest.TestCase):
 
             result = analyze_directory(root)
 
-            self.assertEqual(result["latest_file"].path, latest)
+            self.assertEqual(result.latest_file.path, latest)
 
     def test_markdown_extensions_are_case_insensitive(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -67,7 +68,7 @@ class AnalyzerTests(unittest.TestCase):
 
             result = analyze_directory(root)
 
-            self.assertEqual(len(result["files"]), 2)
+            self.assertEqual(len(result.files), 2)
 
     def test_missing_directory_raises_file_not_found(self):
         with tempfile.TemporaryDirectory() as directory:
