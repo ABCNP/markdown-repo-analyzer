@@ -21,6 +21,8 @@ class AnalyzerTests(unittest.TestCase):
             self.assertIsInstance(result, AnalysisResult)
             self.assertEqual(len(result.files), 2)
             self.assertEqual(result.total_character_count, 7)
+            self.assertGreater(result.total_size, 0)
+            self.assertEqual(result.average_character_count, 3.5)
             self.assertIsNotNone(result.largest_file)
             self.assertIsNotNone(result.latest_file)
 
@@ -85,6 +87,9 @@ class AnalyzerTests(unittest.TestCase):
 
             self.assertIn("Markdown files: 1", report)
             self.assertIn("Total characters:", report)
+            self.assertIn("Total file size:", report)
+            self.assertIn("Average characters per file:", report)
+            self.assertIn("Warnings: 0", report)
             self.assertIn("Largest File", report)
             self.assertIn("Most Recently Modified File", report)
 
@@ -104,6 +109,7 @@ class AnalyzerTests(unittest.TestCase):
             self.assertEqual(len(result.warnings), 1)
             self.assertIn("Warnings", report)
             self.assertIn("unreadable.md", report)
+            self.assertIn("Warnings: 1", report)
 
 if __name__ == "__main__":
     unittest.main()
