@@ -14,6 +14,7 @@ class FileInfo:
     character_count: int
     modified_time: float
     heading_count: int
+    code_block_count: int
 
 @dataclass
 class AnalysisResult:
@@ -29,6 +30,7 @@ class AnalysisResult:
     directory_statistics: dict[str, dict[str, int]]
     empty_files: list[Path]
     total_heading_count: int
+    total_code_block_count: int
 
 def count_characters(text: str) -> int:
     """统计去除空白字符后的字符数量。"""
@@ -37,6 +39,11 @@ def count_characters(text: str) -> int:
 def count_headings(text: str) -> int:
     """统计 Markdown ATX 标题行数量。"""
     return sum(line.lstrip().startswith("#") for line in text.splitlines())
+
+def count_code_blocks(text: str) -> int:
+    """统计 Markdown 代码块数量。"""
+    fence_count = sum(line.strip().startswith("```") for line in text.splitlines())
+    return fence_count // 2
 
 def scan_markdown_files(directory: Path, warnings: list[str] | None = None) -> list[FileInfo]:
     """递归扫描目录，并读取所有 Markdown 文件的基础信息。"""
@@ -58,7 +65,7 @@ def scan_markdown_files(directory: Path, warnings: list[str] | None = None) -> l
             warnings.append(message)
             continue
         files.append(FileInfo(path, stat.st_size, count_characters(text), stat.st_mtime,
-                              count_headings(text)))
+                              count_headings(text), count_code_blocks(text)))
     return files
 
 def analyze_directory(directory: Path) -> AnalysisResult:
@@ -92,6 +99,7 @@ def analyze_directory(directory: Path) -> AnalysisResult:
         directory_statistics=directory_statistics,
         empty_files=empty_files,
         total_heading_count=sum(item.heading_count for item in files),
+        total_code_block_count=sum(item.code_block_count for item in files),
     )
 
 def format_size(size: int) -> str:
@@ -112,6 +120,7 @@ def generate_report(result: AnalysisResult) -> str:
              f"- Average characters per file: {result.average_character_count:.2f}",
              f"- Warnings: {len(result.warnings)}",
              f"- Total headings: {result.total_heading_count}",
+             f"- Total code blocks: {result.total_code_block_count}",
              f"- Generated at: {datetime.now():%Y-%m-%d %H:%M:%S}", "",
              "## Largest File", ""]
     largest = result.largest_file

@@ -24,6 +24,7 @@ class AnalyzerTests(unittest.TestCase):
             self.assertGreater(result.total_size, 0)
             self.assertEqual(result.average_character_count, 3.5)
             self.assertEqual(result.total_heading_count, 0)
+            self.assertEqual(result.total_code_block_count, 0)
             self.assertIsNotNone(result.largest_file)
             self.assertIsNotNone(result.latest_file)
 
@@ -92,6 +93,7 @@ class AnalyzerTests(unittest.TestCase):
             self.assertIn("Average characters per file:", report)
             self.assertIn("Warnings: 0", report)
             self.assertIn("Total headings:", report)
+            self.assertIn("Total code blocks:", report)
             self.assertIn("Directory Summary", report)
             self.assertIn("Empty Files", report)
             self.assertIn("Largest File", report)
@@ -153,6 +155,17 @@ class AnalyzerTests(unittest.TestCase):
 
             self.assertEqual(result.total_heading_count, 2)
             self.assertEqual(result.files[0].heading_count, 2)
+
+    def test_code_blocks_are_counted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            document = root / "document.md"
+            document.write_text("```python\nprint(1)\n```\n\n```\ntext\n```", encoding="utf-8")
+
+            result = analyze_directory(root)
+
+            self.assertEqual(result.total_code_block_count, 2)
+            self.assertEqual(result.files[0].code_block_count, 2)
 
 if __name__ == "__main__":
     unittest.main()
