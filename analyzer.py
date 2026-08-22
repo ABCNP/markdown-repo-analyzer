@@ -13,6 +13,7 @@ class FileInfo:
     size: int
     character_count: int
     modified_time: float
+    heading_count: int
 
 @dataclass
 class AnalysisResult:
@@ -27,10 +28,15 @@ class AnalysisResult:
     average_character_count: float
     directory_statistics: dict[str, dict[str, int]]
     empty_files: list[Path]
+    total_heading_count: int
 
 def count_characters(text: str) -> int:
     """统计去除空白字符后的字符数量。"""
     return sum(not character.isspace() for character in text)
+
+def count_headings(text: str) -> int:
+    """统计 Markdown ATX 标题行数量。"""
+    return sum(line.lstrip().startswith("#") for line in text.splitlines())
 
 def scan_markdown_files(directory: Path, warnings: list[str] | None = None) -> list[FileInfo]:
     """递归扫描目录，并读取所有 Markdown 文件的基础信息。"""
@@ -51,7 +57,8 @@ def scan_markdown_files(directory: Path, warnings: list[str] | None = None) -> l
                 raise RuntimeError(message) from exc
             warnings.append(message)
             continue
-        files.append(FileInfo(path, stat.st_size, count_characters(text), stat.st_mtime))
+        files.append(FileInfo(path, stat.st_size, count_characters(text), stat.st_mtime,
+                              count_headings(text)))
     return files
 
 def analyze_directory(directory: Path) -> AnalysisResult:
@@ -84,6 +91,7 @@ def analyze_directory(directory: Path) -> AnalysisResult:
         ),
         directory_statistics=directory_statistics,
         empty_files=empty_files,
+        total_heading_count=sum(item.heading_count for item in files),
     )
 
 def format_size(size: int) -> str:
@@ -103,6 +111,7 @@ def generate_report(result: AnalysisResult) -> str:
              f"- Total file size: {format_size(result.total_size)}",
              f"- Average characters per file: {result.average_character_count:.2f}",
              f"- Warnings: {len(result.warnings)}",
+             f"- Total headings: {result.total_heading_count}",
              f"- Generated at: {datetime.now():%Y-%m-%d %H:%M:%S}", "",
              "## Largest File", ""]
     largest = result.largest_file
